@@ -1,9 +1,8 @@
 """Analyze relationships between ESG scores and financial KPIs.
 
-CRITICAL: ALL inferential analyses (correlations used as research evidence,
-regressions, ML model training) use the FIRM-LEVEL PANEL from
-build_panel_dataset() (~2,250 rows).  The 15-row sector-average table is
-used ONLY for descriptive trend plots and is clearly labelled as such.
+CRITICAL: ALL analyses (correlations, regressions, ML model training) use
+the FIRM-LEVEL PANEL from build_panel_dataset() (~2,250 rows). There is no
+sector-average aggregate anywhere in this module.
 
 Period: 2011-2025 (15 years), Asian banking markets.
 """
@@ -12,16 +11,15 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from scipy import stats
 
 from config import (
-    MODEL_PERFORMANCE_CSV,
     OUTPUT_DIR,
     PANEL_CSV,
+    RELATIONSHIP_MODEL_PERF_CSV,
     ROLLING_CORRELATIONS_CSV,
 )
-from data_processing import build_panel_dataset, ensure_output_dir, load_banking_dataset
-from models import evaluate_all_relationship_models, train_relationship_models
+from data_processing import build_panel_dataset, ensure_output_dir
+from models import evaluate_all_relationship_models
 from panel_regression import run_all_panel_regressions, print_panel_summary
 from relationship_plots import plot_detailed_relationship, plot_relationship_dashboard
 
@@ -29,15 +27,15 @@ warnings.filterwarnings("ignore")
 
 
 # ---------------------------------------------------------------------------
-#  Rolling correlations — on the PANEL, observed data only (Task 5)
+#  Rolling correlations — on the PANEL, observed data only
 # ---------------------------------------------------------------------------
 
 def _rolling_correlations_panel(panel: pd.DataFrame, window: int = 5) -> pd.DataFrame:
     """Compute rolling ESG-vs-outcome correlations on the firm-level panel.
 
     Within each sliding window of `window` years, we correlate ESG vs
-    ROA/ROE across ALL firm-year observations in that window.  This gives
-    far more stable estimates than correlating 5 yearly averages.
+    ROA/ROE across ALL firm-year observations in that window. This gives
+    far more stable estimates than correlating a handful of yearly averages.
 
     IMPORTANT: uses observed data ONLY — no forecasted/predicted rows.
     The last window ends at the final observed year (2025).
@@ -76,13 +74,12 @@ def _rolling_correlations_panel(panel: pd.DataFrame, window: int = 5) -> pd.Data
 def run_relationship_analysis() -> dict:
     """Run relationship analysis and write CSV/PNG outputs.
 
-    Data source: firm-level panel (~2,250 rows) for all inferential
-    analyses.  The 15-row sector average is used only for descriptive
-    trend context in plots.
+    Data source: firm-level panel (~2,250 rows) for every statistic,
+    regression, and model in this module.
     """
     ensure_output_dir()
 
-    # ===== PANEL DATA (inferential — all stats/models use this) =====
+    # ===== PANEL DATA (all analyses use this) =====
     panel = build_panel_dataset()
     panel.to_csv(OUTPUT_DIR / PANEL_CSV, index=False)
 
@@ -107,82 +104,42 @@ def run_relationship_analysis() -> dict:
                 "overfit_gap": scores["train_r2_mean"] - scores["test_r2_mean"],
             })
     ml_perf_df = pd.DataFrame(ml_rows)
-    ml_perf_df.to_csv(OUTPUT_DIR / "banking_relationship_model_performance.csv", index=False)
+    ml_perf_df.to_csv(OUTPUT_DIR / RELATIONSHIP_MODEL_PERF_CSV, index=False)
 
-    # --- Panel-level correlations (firm-year, the honest ones) ---
+    # --- Panel-level correlations (firm-year) ---
     panel_clean_roa = panel.dropna(subset=["esg", "roa"])
     panel_clean_roe = panel.dropna(subset=["esg", "roe"])
 
     panel_corr_roa = panel_clean_roa["esg"].corr(panel_clean_roa["roa"])
     panel_corr_roe = panel_clean_roe["esg"].corr(panel_clean_roe["roe"])
 
-    # --- Rolling correlations on the panel (observed data only, Task 5) ---
+    # --- Rolling correlations on the panel (observed data only) ---
     rolling_df = _rolling_correlations_panel(panel)
     rolling_df.to_csv(OUTPUT_DIR / ROLLING_CORRELATIONS_CSV, index=False)
 
-    # ===== DESCRIPTIVE SECTOR AVERAGES (for context/trend plots only) =====
-    dataset = load_banking_dataset()
-    # Descriptive sector-level yearly means.
-    # For plotting/context ONLY. Not for correlation, regression,
-    # model training, or significance testing.
-    sector_yearly_means = dataset.historical
-
-    # Descriptive sector-level Pearson correlation on yearly averages.
-    # This is NOT a firm-level or causal estimate — it reflects
-    # time-trend co-movement only.
-    desc_corr_roa = sector_yearly_means["ESG_Score"].corr(sector_yearly_means["Pretax_ROA"])
-    desc_corr_roe = sector_yearly_means["ESG_Score"].corr(sector_yearly_means["Pretax_ROE"])
-    desc_corr_roa_roe = sector_yearly_means["Pretax_ROA"].corr(sector_yearly_means["Pretax_ROE"])
-
-    # --- Train relationship models on the panel for plot predictions ---
-    panel_roa = panel.dropna(subset=["esg", "roa"])
-    panel_roe = panel.dropna(subset=["esg", "roe"])
-    roa_models = train_relationship_models(panel_roa["esg"].values, panel_roa["roa"].values)
-    roe_models = train_relationship_models(panel_roe["esg"].values, panel_roe["roe"].values)
-
-    # --- Save combined correlation results ---
+    # --- Save correlation results ---
     correlation_results = pd.DataFrame({
         "Relationship": [
             "ESG vs ROA (panel, firm-year)",
             "ESG vs ROE (panel, firm-year)",
-            "ESG vs ROA (sector avg, descriptive only)",
-            "ESG vs ROE (sector avg, descriptive only)",
-            "ROA vs ROE (sector avg, descriptive only)",
         ],
-        "Correlation": [
-            panel_corr_roa, panel_corr_roe,
-            desc_corr_roa, desc_corr_roe, desc_corr_roa_roe,
-        ],
-        "N_obs": [
-            len(panel_clean_roa), len(panel_clean_roe),
-            len(sector_yearly_means), len(sector_yearly_means), len(sector_yearly_means),
-        ],
+        "Correlation": [panel_corr_roa, panel_corr_roe],
+        "N_obs": [len(panel_clean_roa), len(panel_clean_roe)],
         "Note": [
             "Firm-level panel correlation",
             "Firm-level panel correlation",
-            "Descriptive time-trend ONLY, NOT causal",
-            "Descriptive time-trend ONLY, NOT causal",
-            "Descriptive time-trend ONLY, NOT causal",
         ],
     })
     correlation_results.to_csv(OUTPUT_DIR / "banking_correlation_results.csv", index=False)
 
     # --- Build context dict for plots ---
     context = {
-        # Panel data (inferential)
         "panel": panel,
         "panel_results": panel_results,
         "ml_eval_results": ml_eval_results,
         "panel_corr_roa": panel_corr_roa,
         "panel_corr_roe": panel_corr_roe,
         "rolling_df": rolling_df,
-        "roa_models": roa_models,
-        "roe_models": roe_models,
-        # Descriptive sector averages (plotting only)
-        "sector_yearly_means": sector_yearly_means,
-        "desc_corr_roa": desc_corr_roa,
-        "desc_corr_roe": desc_corr_roe,
-        "desc_corr_roa_roe": desc_corr_roa_roe,
     }
 
     plot_relationship_dashboard(context)
@@ -203,12 +160,6 @@ def print_summary(context: dict) -> None:
     print(f"\nPanel-level correlations (firm-year, n~2000+):")
     print(f"  ESG vs ROA: r = {context['panel_corr_roa']:.4f}")
     print(f"  ESG vs ROE: r = {context['panel_corr_roe']:.4f}")
-
-    # Descriptive sector-level (clearly labelled)
-    print(f"\nDescriptive sector-average correlations (n=15, time-trend ONLY):")
-    print(f"  ESG vs ROA: r = {context['desc_corr_roa']:.4f}")
-    print(f"  ESG vs ROE: r = {context['desc_corr_roe']:.4f}")
-    print(f"  (NOT causal or firm-level estimates)")
 
     # ML model evaluation
     print(f"\nML model out-of-sample performance (GroupKFold by firm):")

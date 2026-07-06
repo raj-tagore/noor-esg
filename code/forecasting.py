@@ -1,12 +1,7 @@
-"""Extrapolation-capable forecasting models for 2026-2030.
+"""Illustrative sector-level linear-trend forecast for 2026-2030.
 
-Tree models (XGBoost, RF, DT) CANNOT extrapolate — any input beyond
-the training range produces a flat constant (the nearest leaf value).
-The flat line is a modelling artifact, not an economic prediction.
-
-This module provides:
-- OLS linear-trend forecasts with prediction intervals.
-- An optional ARIMA forecast (if the series is long enough).
+OLS linear trend on the 15 annual descriptive means, with prediction
+intervals. This is the sole forecasting method in the pipeline.
 
 CAVEAT: 15 annual observations is a very short series; forecasts to
 2030 are illustrative and highly uncertain.

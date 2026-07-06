@@ -1,31 +1,15 @@
 """Data loading and preprocessing utilities for the ESG banking dataset."""
 
-from dataclasses import dataclass
-
-import numpy as np
 import pandas as pd
 
 from config import (
     BASE_YEAR,
-    COMPANY_COLUMNS,
     DATA_FILE,
     ESG_COLUMNS,
     OUTPUT_DIR,
     ROA_COLUMNS,
     ROE_COLUMNS,
 )
-
-
-@dataclass(frozen=True)
-class BankingDataset:
-    """Processed banking panel data used by the analysis scripts."""
-
-    historical: pd.DataFrame
-    company_info: pd.DataFrame
-    years: list[int]
-    esg_data: np.ndarray
-    roa_data: np.ndarray
-    roe_data: np.ndarray
 
 
 def ensure_output_dir() -> None:
@@ -59,52 +43,6 @@ def fiscal_year_to_year(label, base_year: int = BASE_YEAR) -> int | None:
     return None
 
 
-def _chronological_year_indices(year_labels: list) -> tuple[list[int], list[int]]:
-    years = [fiscal_year_to_year(label) for label in year_labels]
-    valid_pairs = [(index, year) for index, year in enumerate(years) if year is not None]
-    valid_pairs.sort(key=lambda item: item[1])
-    return [index for index, _ in valid_pairs], [year for _, year in valid_pairs]
-
-
-def _numeric_metric_matrix(data_rows: pd.DataFrame, column_slice: slice, indices: list[int]) -> np.ndarray:
-    metric_data = data_rows.iloc[:, column_slice].apply(pd.to_numeric, errors="coerce").values
-    return metric_data[:, indices]
-
-
-def load_banking_dataset(path=DATA_FILE) -> BankingDataset:
-    """Load, clean, and aggregate the banking ESG/ROA/ROE dataset."""
-
-    df_raw = load_raw_dataset(path)
-    year_labels = df_raw.iloc[1, ESG_COLUMNS].tolist()
-    chronological_indices, years = _chronological_year_indices(year_labels)
-
-    data_rows = df_raw.iloc[2:, :].reset_index(drop=True)
-    company_info = data_rows.iloc[:, 0:5].copy()
-    company_info.columns = COMPANY_COLUMNS
-
-    esg_data = _numeric_metric_matrix(data_rows, ESG_COLUMNS, chronological_indices)
-    roa_data = _numeric_metric_matrix(data_rows, ROA_COLUMNS, chronological_indices)
-    roe_data = _numeric_metric_matrix(data_rows, ROE_COLUMNS, chronological_indices)
-
-    historical = pd.DataFrame(
-        {
-            "Year": years,
-            "ESG_Score": np.nanmean(esg_data, axis=0),
-            "Pretax_ROA": np.nanmean(roa_data, axis=0) * 100,
-            "Pretax_ROE": np.nanmean(roe_data, axis=0) * 100,
-        }
-    )
-
-    return BankingDataset(
-        historical=historical,
-        company_info=company_info,
-        years=years,
-        esg_data=esg_data,
-        roa_data=roa_data,
-        roe_data=roe_data,
-    )
-
-
 def build_panel_dataset(path=DATA_FILE) -> pd.DataFrame:
     """
     Return a long-format firm-year panel:
@@ -113,9 +51,6 @@ def build_panel_dataset(path=DATA_FILE) -> pd.DataFrame:
 
     One row per (firm, year). ~2,250 rows for 150 firms x 15 years.
     This is the dataset ALL statistical tests and models must use.
-
-    The 15-row yearly-average table returned by load_banking_dataset() is
-    for descriptive trend plots ONLY — never for inference.
     """
     df_raw = load_raw_dataset(path)
 
@@ -157,9 +92,8 @@ def build_panel_dataset(path=DATA_FILE) -> pd.DataFrame:
     panel = panel.merge(ids, on="firm_id", how="left")
 
     # Unit convention: in the wide data ROA/ROE are stored as fractions
-    # (e.g. 0.017 meaning 1.7%). The existing load_banking_dataset()
-    # multiplies the yearly means by 100. Apply the same ×100 here so
-    # 'roa'/'roe' are in PERCENT throughout the codebase.
+    # (e.g. 0.017 meaning 1.7%). Apply ×100 so 'roa'/'roe' are in PERCENT
+    # throughout the codebase.
     panel["roa"] = panel["roa"] * 100
     panel["roe"] = panel["roe"] * 100
 
@@ -169,4 +103,25 @@ def build_panel_dataset(path=DATA_FILE) -> pd.DataFrame:
     # Types
     panel["year"] = panel["year"].astype(int)
     return panel.sort_values(["firm_id", "year"]).reset_index(drop=True)
+
+
+def build_descriptive_stats(panel: pd.DataFrame) -> pd.DataFrame:
+    """Per-year descriptive statistics from the firm-level panel.
+
+    This is the ONLY sector-level aggregate kept in the pipeline: a plain
+    mean/std/N table (not a chart, not correlated against a financial
+    metric on a shared axis).
+    """
+    grouped = panel.groupby("year")
+    stats = pd.DataFrame({
+        "Year": grouped.size().index,
+        "ESG_mean": grouped["esg"].mean().values,
+        "ESG_std": grouped["esg"].std().values,
+        "ROA_mean": grouped["roa"].mean().values,
+        "ROA_std": grouped["roa"].std().values,
+        "ROE_mean": grouped["roe"].mean().values,
+        "ROE_std": grouped["roe"].std().values,
+        "N_firms": grouped["firm_id"].nunique().values,
+    })
+    return stats.sort_values("Year").reset_index(drop=True)
 
