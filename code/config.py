@@ -20,3 +20,13 @@ METRICS = [
     ("Pretax_ROA", "Pretax ROA (%)"),
     ("Pretax_ROE", "Pretax ROE (%)"),
 ]
+
+# --- Panel / inferential output filenames ---
+PANEL_CSV = "banking_panel_long.csv"
+PANEL_REGRESSION_CSV = "banking_panel_regression_results.csv"
+PANEL_REGRESSION_ROA_TXT = "banking_panel_regression_roa_summary.txt"
+PANEL_REGRESSION_ROE_TXT = "banking_panel_regression_roe_summary.txt"
+MODEL_PERFORMANCE_CSV = "banking_model_performance.csv"
+ROLLING_CORRELATIONS_CSV = "banking_rolling_correlations.csv"
+PREDICTIONS_CSV = "banking_predictions_2026_2030.csv"
+HISTORICAL_CSV = "banking_historical_data_2011_2025.csv"
