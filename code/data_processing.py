@@ -43,6 +43,21 @@ def fiscal_year_to_year(label, base_year: int = BASE_YEAR) -> int | None:
     return None
 
 
+def winsorize_series(s: pd.Series, lower: float = 0.01, upper: float = 0.99) -> pd.Series:
+    """Clip a numeric series to its [lower, upper] quantiles (pooled).
+
+    ROA/ROE are ratios whose denominators (total assets / shareholders'
+    equity) can collapse toward zero for a distressed firm, producing
+    economically meaningless extremes — e.g. Reliance Capital's 2020 ROE of
+    -4162% when its equity was nearly wiped out. A single such firm can
+    dominate a sector mean and yank panel-regression coefficients around.
+    Winsorizing caps these tails; NaNs are preserved.
+    """
+    lo = s.quantile(lower)
+    hi = s.quantile(upper)
+    return s.clip(lower=lo, upper=hi)
+
+
 def build_panel_dataset(path=DATA_FILE) -> pd.DataFrame:
     """
     Return a long-format firm-year panel:
@@ -97,6 +112,15 @@ def build_panel_dataset(path=DATA_FILE) -> pd.DataFrame:
     panel["roa"] = panel["roa"] * 100
     panel["roe"] = panel["roe"] * 100
 
+    # Outlier handling: keep the raw ratios for transparency, but winsorize
+    # the working ROA/ROE columns (1st/99th pct, pooled) so a single firm
+    # with a collapsed denominator cannot dominate sector means or distort
+    # the panel regressions. All downstream code uses the winsorized columns.
+    panel["roa_raw"] = panel["roa"]
+    panel["roe_raw"] = panel["roe"]
+    panel["roa"] = winsorize_series(panel["roa"])
+    panel["roe"] = winsorize_series(panel["roe"])
+
     # Drop rows with no usable data at all
     panel = panel.dropna(subset=["esg", "roa", "roe"], how="all")
 
@@ -109,17 +133,22 @@ def build_descriptive_stats(panel: pd.DataFrame) -> pd.DataFrame:
     """Per-year descriptive statistics from the firm-level panel.
 
     This is the ONLY sector-level aggregate kept in the pipeline: a plain
-    mean/std/N table (not a chart, not correlated against a financial
-    metric on a shared axis).
+    mean/median/std/N table (not a chart, not correlated against a financial
+    metric on a shared axis). Means use the winsorized ROA/ROE; the median
+    is reported alongside as an outlier-robust central tendency (and is what
+    the descriptive trend chart plots).
     """
     grouped = panel.groupby("year")
     stats = pd.DataFrame({
         "Year": grouped.size().index,
         "ESG_mean": grouped["esg"].mean().values,
+        "ESG_median": grouped["esg"].median().values,
         "ESG_std": grouped["esg"].std().values,
         "ROA_mean": grouped["roa"].mean().values,
+        "ROA_median": grouped["roa"].median().values,
         "ROA_std": grouped["roa"].std().values,
         "ROE_mean": grouped["roe"].mean().values,
+        "ROE_median": grouped["roe"].median().values,
         "ROE_std": grouped["roe"].std().values,
         "N_firms": grouped["firm_id"].nunique().values,
     })

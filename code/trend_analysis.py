@@ -27,10 +27,11 @@ def run_trend_analysis() -> tuple[pd.DataFrame, pd.DataFrame]:
     descriptive_stats = build_descriptive_stats(panel)
     descriptive_stats.to_csv(OUTPUT_DIR / DESCRIPTIVE_STATS_CSV, index=False)
 
+    # Forecast on the outlier-robust MEDIAN series (see build_descriptive_stats).
     forecasts = {
-        "esg": linear_trend_forecast(descriptive_stats["Year"].values, descriptive_stats["ESG_mean"].values),
-        "roa": linear_trend_forecast(descriptive_stats["Year"].values, descriptive_stats["ROA_mean"].values),
-        "roe": linear_trend_forecast(descriptive_stats["Year"].values, descriptive_stats["ROE_mean"].values),
+        "esg": linear_trend_forecast(descriptive_stats["Year"].values, descriptive_stats["ESG_median"].values),
+        "roa": linear_trend_forecast(descriptive_stats["Year"].values, descriptive_stats["ROA_median"].values),
+        "roe": linear_trend_forecast(descriptive_stats["Year"].values, descriptive_stats["ROE_median"].values),
     }
     forecast_df = build_forecast_dataframe(forecasts, FUTURE_YEARS)
     forecast_df.to_csv(OUTPUT_DIR / FORECAST_CSV, index=False)

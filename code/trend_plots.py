@@ -17,13 +17,13 @@ def plot_forecast_chart(descriptive_stats, forecasts: dict, future_years: list[i
     fig, axes = plt.subplots(1, 3, figsize=(20, 6))
 
     for ax, (key, title) in zip(axes, METRICS):
-        mean_col = f"{key.upper()}_mean"
+        central_col = f"{key.upper()}_median"
         lf = forecasts[key]
 
         ax.plot(
-            descriptive_stats["Year"], descriptive_stats[mean_col],
+            descriptive_stats["Year"], descriptive_stats[central_col],
             "o-", color="#2C3E50", linewidth=2.5, markersize=7,
-            label="Sector mean (observed)",
+            label="Sector median (observed)",
         )
         ax.plot(
             future_years, lf["predictions"],
@@ -43,7 +43,7 @@ def plot_forecast_chart(descriptive_stats, forecasts: dict, future_years: list[i
 
     plt.suptitle(
         "Illustrative Sector-Level Projection (15 annual points, wide uncertainty)\n"
-        "2011-2025 Observed Means & 2026-2030 Linear-Trend Forecast",
+        "2011-2025 Observed Medians (ROA/ROE winsorized) & 2026-2030 Linear-Trend Forecast",
         fontsize=13, fontweight="bold",
     )
     plt.tight_layout(rect=[0, 0, 1, 0.9])
