@@ -20,6 +20,25 @@ Three variables are used:
 
 **Descriptive aggregation (context only).** Annual sector means and medians are computed purely to describe broad trends. They are **not** used for correlation, regression, or model training, because averaging ~150 firms into a single number per year discards the cross-firm variation needed to identify any ESG–performance relationship and reduces the data to just 15 points, which produces spurious, trend-driven associations.
 
+### 3.1.1 Exploratory sample diagnostics
+
+Before inference, a descriptive atlas of the firm-year panel is produced (script: `code/explore_dataset.py`; figures under `outputs/explore/`). These plots use headquarters country (`country_hq`) and TRBC industry labels already present in the panel. For multi-series and faceted figures, country or industry groups with fewer than five distinct firms are collapsed into an “Other” category so thin cells do not dominate the display; exact uncollapsed counts are retained in `outputs/explore/panel_composition_summary.csv` and in the single-dimension bar charts.
+
+In this sample the panel has **150 firms** and **2,250 firm-years** (2011–2025). Headquarters coverage is led by Japan (37), China (17), South Korea (16), India (13), and Taiwan (13). By industry, Banks predominate (97), followed by Life & Health Insurance (16) and Investment Banking & Brokerage Services (12). ESG is non-missing in all firm-years; pretax ROA and ROE are available for 99.1% and 98.9% of firm-years respectively.
+
+The figures are for sample understanding only. Median trajectories and faceted ESG–ROA scatters are **not** used for correlation, regression, or causal claims; those rest on the panel fixed-effects results in §4.
+
+| Figure | File | What it shows | Why it matters |
+|---|---|---|---|
+| 1 | `01_composition_country.png` | Distinct firms by `country_hq` (all countries) | Shows geographic concentration and which markets dominate the Asian BFSI sample |
+| 2 | `02_composition_industry_heatmap.png` | Firms by industry, plus a country × industry firm-count heatmap (rare groups collapsed) | Clarifies industry mix and where country–industry cells are thin before subgroup work |
+| 3 | `03_coverage_over_time.png` | Non-null ESG / ROA / ROE firm-year counts by calendar year | Reveals unbalancedness and whether disclosure or financial coverage changes over 2011–2025 |
+| 4 | `04_coverage_by_country.png` | ESG coverage rate and median years of ESG history per firm, by country group | Flags thin or short-history country cells that would be unreliable for heterogeneity analysis |
+| 5 | `05_univariate_distributions.png` | Histograms/KDEs of ESG, pretax ROA, and pretax ROE (firm-year; ROA/ROE winsorized) | Checks skew, tails after winsorization, and overall scale of each metric |
+| 6 | `06_distributions_by_group.png` | Box plots of ESG and ROA by industry and by country group | Shows level differences across business models and markets (descriptive heterogeneity of levels) |
+| 7 | `07_median_trajectories_by_group.png` | Median ESG over time by country group and by industry | Descriptive trend comparison across groups; not used for ESG–CFP inference |
+| 8a / 8b | `08a_esg_vs_roa_by_industry.png`, `08b_esg_vs_roa_by_country.png` | Firm-year ESG vs ROA scatters faceted by industry and by country group | Makes within-group clouds visible; pooled scatter alone can hide composition |
+
 ### 3.2 Primary model: panel fixed-effects regression
 
 The core inferential model is a **two-way (firm and year) fixed-effects panel regression**, estimated on the full firm-year panel. For firm *i* in year *t*:
@@ -37,6 +56,26 @@ where:
 Standard errors are **clustered by firm** to account for within-firm serial correlation. The model is estimated in both a **contemporaneous** form (ESG_it) and a **one-year-lagged** form (ESG_i,t−1), the latter allowing current profitability to respond to prior ESG effort. Because the firm and year fixed effects remove the shared time trends that drive spurious correlations in aggregated data, β identifies whether *changes in a firm's own ESG score* are associated with *changes in its own profitability*.
 
 For descriptive comparison, Pearson correlations between ESG and each financial metric are also reported at the firm-year level (across all observations, not on yearly averages).
+
+### 3.2.1 Heterogeneity by country group and industry
+
+To check whether the pooled null result masks differences across markets or business lines, the **same two-way FE estimator** is re-estimated on geography- and industry-based subsamples (script: `code/heterogeneity.py`). Group membership is defined by region / market identity first; firm counts only determine whether a country is estimated alone or remains inside its regional pool. There is no catch-all “Other” of unrelated small markets.
+
+**Country groups** (`country_hq`):
+
+| Group | Members |
+|---|---|
+| Japan | Japan |
+| China (incl. Hong Kong) | China, Hong Kong |
+| Korea | Korea; Republic (S. Korea) |
+| Taiwan | Taiwan |
+| India | India |
+| ASEAN | Malaysia, Indonesia, Thailand, Singapore, Philippines |
+| West Asia / Middle East | Turkey, Israel, Kuwait, Jordan, Oman, Qatar, Saudi Arabia |
+
+**Industry groups** (TRBC): Banks; Insurance (Life & Health + Property & Casualty); Other financials (remaining industries).
+
+A subsample is estimated only if it has at least **10 firms** and **100 firm-years** with usable ESG and outcome data. Contemporaneous and one-year-lagged ESG specifications are reported. Descriptive explore plots in §3.1.1 are not substitutes for these regressions. Forest plots of contemporaneous coefficients are saved as `banking_heterogeneity_country_forest.png` and `banking_heterogeneity_industry_forest.png`.
 
 ### 3.3 Machine-learning models and out-of-sample validation
 
@@ -114,6 +153,46 @@ In substantive terms, a one-point change in a bank's ESG score is associated wit
 
 This contrasts sharply with the strong negative correlation (r ≈ −0.55) reported when firms are collapsed into a single annual sector average. That approach reduces ~2,230 observations to 15 points and measures only the co-movement of two sector-wide trends (rising ESG, gently drifting profitability) — a spurious, trend-driven artifact rather than a firm-level relationship.
 
+### 4.2.1 Heterogeneity: country groups and industry
+
+Re-estimating the same FE model within geographic and industry groups largely **reproduces the pooled null**. Tables 3a–3b report contemporaneous ESG coefficients (lagged results are in `outputs/banking_heterogeneity_*.csv`; forest plots show the same contemporaneous pattern).
+
+**Table 3a. Contemporaneous ESG FE coefficients by country group.**
+
+| Group | Outcome | β | SE | p-value | n | Firms |
+|---|---|---|---|---|---|---|
+| Full sample | ROA | 0.00105 | 0.00329 | 0.750 | 2,230 | 150 |
+| Full sample | ROE | 0.00147 | 0.02120 | 0.945 | 2,225 | 150 |
+| Japan | ROA | 0.00298 | 0.00877 | 0.734 | 553 | 37 |
+| Japan | ROE | 0.03576 | 0.04937 | 0.469 | 553 | 37 |
+| China (incl. Hong Kong) | ROA | 0.00783 | 0.01352 | 0.563 | 352 | 24 |
+| China (incl. Hong Kong) | ROE | 0.08102 | 0.03714 | 0.030 | 352 | 24 |
+| Korea | ROA | 0.00293 | 0.00722 | 0.686 | 231 | 16 |
+| Korea | ROE | 0.02159 | 0.05844 | 0.712 | 231 | 16 |
+| Taiwan | ROA | 0.00181 | 0.00189 | 0.339 | 195 | 13 |
+| Taiwan | ROE | −0.02069 | 0.02821 | 0.464 | 195 | 13 |
+| India | ROA | 0.00550 | 0.01840 | 0.765 | 195 | 13 |
+| India | ROE | −0.08920 | 0.10753 | 0.408 | 190 | 13 |
+| ASEAN | ROA | −0.00238 | 0.00397 | 0.550 | 419 | 28 |
+| ASEAN | ROE | −0.05578 | 0.05520 | 0.313 | 419 | 28 |
+| West Asia / Middle East | ROA | −0.00361 | 0.00585 | 0.537 | 285 | 19 |
+| West Asia / Middle East | ROE | −0.04189 | 0.04755 | 0.379 | 285 | 19 |
+
+**Table 3b. Contemporaneous ESG FE coefficients by industry group.**
+
+| Group | Outcome | β | SE | p-value | n | Firms |
+|---|---|---|---|---|---|---|
+| Full sample | ROA | 0.00105 | 0.00329 | 0.750 | 2,230 | 150 |
+| Full sample | ROE | 0.00147 | 0.02120 | 0.945 | 2,225 | 150 |
+| Banks | ROA | 0.00052 | 0.00191 | 0.785 | 1,445 | 97 |
+| Banks | ROE | 0.01396 | 0.02168 | 0.520 | 1,445 | 97 |
+| Insurance | ROA | 0.00342 | 0.00783 | 0.663 | 311 | 21 |
+| Insurance | ROE | 0.01017 | 0.04405 | 0.818 | 306 | 21 |
+| Other financials | ROA | −0.00235 | 0.01517 | 0.877 | 474 | 32 |
+| Other financials | ROE | −0.00665 | 0.05066 | 0.896 | 474 | 32 |
+
+Almost every subsample coefficient is statistically indistinguishable from zero, including Banks (the bulk of the sample) and Japan. The one exception at the 5% level is **China (incl. Hong Kong), ESG → ROE** (β ≈ 0.081, p ≈ 0.030). That association is **not** significant for ROA in the same group, nor for lagged ESG → ROE (p ≈ 0.45), and it should be read cautiously: many subgroups were tested, within-R² remains negligible, and the result is exploratory rather than a confirmed regional “ESG pays” finding. Industry splits show no significant associations.
+
 ### 4.3 Machine-learning models: no out-of-sample predictive power
 
 Evaluated honestly out-of-sample (GroupKFold by firm), none of the three models can predict either financial metric from ESG (Table 4). **Every test R² is negative**, meaning the models predict worse than simply using the mean. The large gap between training R² (≈ 0.08–0.17) and test R² confirms that any in-sample fit is overfitting. This directly reverses earlier claims of near-perfect accuracy (R² ≈ 1.0), which were produced by evaluating models on their own training data.
@@ -165,4 +244,4 @@ Recomputed on firm-year data using observed values only, the rolling 5-year corr
 
 ### 4.6 Summary
 
-Across every method — panel fixed-effects regression, firm-year correlations, out-of-sample machine learning, and rolling-window analysis — the evidence points the same way: **once firm heterogeneity, common time shocks, and outliers are properly handled, ESG performance is neither a driver nor a drag on the short-run profitability of Asian BFSI firms in this sample.** The strong relationships and near-perfect predictions reported under the earlier sector-average methodology were artifacts of aggregation, in-sample evaluation, and a single distressed-firm outlier.
+Across every method — panel fixed-effects regression, country- and industry-group subsample FE, firm-year correlations, out-of-sample machine learning, and rolling-window analysis — the evidence points the same way: **once firm heterogeneity, common time shocks, and outliers are properly handled, there is no robust short-run within-firm association between ESG scores and pretax profitability for Asian BFSI firms in this sample.** Country and industry splits largely confirm the pooled null (Banks and Japan included); a single exploratory exception (China incl. Hong Kong, contemporaneous ESG → ROE) does not overturn that pattern. The strong relationships and near-perfect predictions reported under the earlier sector-average methodology were artifacts of aggregation, in-sample evaluation, and a single distressed-firm outlier.

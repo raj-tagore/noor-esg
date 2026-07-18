@@ -1,14 +1,15 @@
 """Run the full panel-based ESG analysis pipeline.
 
 Pipeline order:
-1. Build firm-level panel dataset (~2,250 rows) + descriptive stats
-2. Panel fixed-effects regression + out-of-sample ML evaluation + correlations
+1. Panel fixed-effects regression + out-of-sample ML evaluation + correlations
+2. Country-group and industry subsample FE (heterogeneity)
 3. Illustrative linear-trend forecast (2026-2030)
 4. All outputs written to outputs/
 
 Period: 2011-2025 (15 years), Asian banking markets.
 """
 
+from heterogeneity import run_heterogeneity_analysis, print_summary as print_heterogeneity_summary
 from relationship_analysis import run_relationship_analysis, print_summary as print_relationship_summary
 from trend_analysis import run_trend_analysis, print_summary as print_trend_summary
 
@@ -20,7 +21,13 @@ def main() -> None:
 
     print()
 
-    # 2. Descriptive stats + illustrative linear-trend forecast
+    # 2. Country / industry heterogeneity (same FE estimator on subsamples)
+    heterogeneity_context = run_heterogeneity_analysis()
+    print_heterogeneity_summary(heterogeneity_context)
+
+    print()
+
+    # 3. Descriptive stats + illustrative linear-trend forecast
     descriptive_stats, forecast_df = run_trend_analysis()
     print_trend_summary(descriptive_stats, forecast_df)
 

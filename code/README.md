@@ -7,9 +7,10 @@ Panel-based ESG-to-financial-performance analysis pipeline for the Asian banking
 All findings derive from the **firm-level panel** (~2,250 firm-year rows) built by `build_panel_dataset()`. There is no sector-average aggregate used for inference anywhere in this codebase:
 
 1. **Panel fixed-effects regression** (firm + year FE, clustered SE) is the headline result.
-2. **Out-of-sample ML evaluation** (GroupKFold by firm) reports test-set R2, never in-sample R2.
-3. **Rolling correlations** are computed on the panel, using observed data only.
-4. **Firm-year scatter plots** and residual diagnostics visualize the panel relationship directly.
+2. **Heterogeneity subsample FE** re-estimates the same model within geography-based country groups and industry groups.
+3. **Out-of-sample ML evaluation** (GroupKFold by firm) reports test-set R2, never in-sample R2.
+4. **Rolling correlations** are computed on the panel, using observed data only.
+5. **Firm-year scatter plots** and residual diagnostics visualize the panel relationship directly.
 
 The one sector-level output kept is a **descriptive statistics table** (`banking_descriptive_stats.csv`): per-year mean/std/N of ESG, ROA, and ROE, computed by grouping the panel by year. It is a table, not a chart, and never puts ESG and a financial metric on a shared axis.
 
@@ -20,14 +21,17 @@ The one forecasting method kept is an **illustrative linear-trend (OLS) projecti
 - `config.py`: shared paths, column ranges, and output filenames.
 - `data_processing.py`: Excel loading, FY label conversion, `build_panel_dataset()` (the firm-level panel), and `build_descriptive_stats()` (per-year mean/std/N).
 - `panel_regression.py`: panel fixed-effects regressions (headline results).
+- `heterogeneity.py`: country-group and industry subsample FE (same estimator as headline).
+- `heterogeneity_plots.py`: forest plots of subsample FE coefficients.
 - `models.py`: out-of-sample ESG->ROA/ROE model evaluation (GroupKFold by firm).
 - `forecasting.py`: illustrative OLS linear-trend forecast with prediction intervals.
 - `relationship_analysis.py`: panel-based ESG-financial relationship analysis (regressions, ML evaluation, correlations, rolling correlations).
 - `relationship_plots.py`: visualizations for the panel-based relationship analysis (7-panel dashboard + residual diagnostics).
 - `trend_analysis.py`: descriptive stats + illustrative linear-trend forecast.
 - `trend_plots.py`: the single forecast chart (observed mean + linear trend + prediction band, per metric).
-- `explore_dataset.py`: lightweight dataset inspection script.
-- `run_all.py`: runs the full pipeline.
+- `explore_plots.py`: descriptive sample atlas (composition, coverage, distributions, country/industry facets) written to `outputs/explore/`.
+- `explore_dataset.py`: builds the panel, prints composition summary, and runs the exploratory plot suite (not wired into `run_all.py`).
+- `run_all.py`: runs the full inferential pipeline.
 
 ## Usage
 
@@ -38,10 +42,11 @@ From the project root, use `uv run` to execute any script:
 ```powershell
 uv run python code\run_all.py
 uv run python code\relationship_analysis.py
+uv run python code\heterogeneity.py
 uv run python code\trend_analysis.py
 ```
 
-For a quick dataset inspection:
+For the exploratory sample atlas (composition / coverage / country–industry plots):
 
 ```powershell
 uv run python code\explore_dataset.py
@@ -55,6 +60,10 @@ uv run python code\explore_dataset.py
 | `banking_panel_regression_results.csv` | Fixed-effects regression results (headline) |
 | `banking_panel_regression_roa_summary.txt` | Full ROA regression model summary |
 | `banking_panel_regression_roe_summary.txt` | Full ROE regression model summary |
+| `banking_heterogeneity_country.csv` | Subsample FE by country group |
+| `banking_heterogeneity_industry.csv` | Subsample FE by industry group |
+| `banking_heterogeneity_country_forest.png` | Forest plot of country-group betas |
+| `banking_heterogeneity_industry_forest.png` | Forest plot of industry-group betas |
 | `banking_correlation_results.csv` | Panel firm-year correlations |
 | `banking_rolling_correlations.csv` | Rolling correlations (panel, observed only) |
 | `banking_relationship_model_performance.csv` | ML out-of-sample performance |
