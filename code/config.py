@@ -10,10 +10,6 @@ EXPLORE_DIR = OUTPUT_DIR / "explore"
 BASE_YEAR = 2025
 FUTURE_YEARS = [2026, 2027, 2028, 2029, 2030]
 
-# Collapse country/industry groups with fewer than this many distinct firms
-# in multi-series and facet exploratory plots (full detail kept in count bars).
-EXPLORE_MIN_FIRMS = 5
-
 COMPANY_COLUMNS = ["RIC", "Company_Name", "Country_HQ", "Country_Inc", "Industry"]
 
 ESG_COLUMNS = slice(5, 20)

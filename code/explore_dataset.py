@@ -8,15 +8,17 @@ from __future__ import annotations
 
 import pandas as pd
 
-from config import EXPLORE_DIR, EXPLORE_MIN_FIRMS
+from config import EXPLORE_DIR
 from data_processing import build_panel_dataset, load_raw_dataset
 from explore_plots import build_composition_summary, ensure_explore_dir, run_all_explore_plots
+from groups import add_group_columns
 
 
 def print_panel_summary(panel: pd.DataFrame) -> None:
     n_firms = panel["firm_id"].nunique()
     n_rows = len(panel)
     years = sorted(panel["year"].unique())
+    grouped = add_group_columns(panel)
 
     print("=" * 80)
     print("FIRM-YEAR PANEL: EXPLORATORY SUMMARY")
@@ -24,7 +26,7 @@ def print_panel_summary(panel: pd.DataFrame) -> None:
     print(f"Firms: {n_firms}")
     print(f"Firm-years: {n_rows:,}")
     print(f"Year range: {years[0]}-{years[-1]} ({len(years)} years)")
-    print(f"Rare-group collapse threshold: <{EXPLORE_MIN_FIRMS} firms -> Other")
+    print("Grouped plots use the same country/industry groups as heterogeneity analysis")
 
     print("\nFirms by country_hq:")
     country_counts = (
@@ -34,6 +36,14 @@ def print_panel_summary(panel: pd.DataFrame) -> None:
     )
     print(country_counts.to_string())
 
+    print("\nFirms by analysis country_group:")
+    print(
+        grouped.groupby("country_group")["firm_id"]
+        .nunique()
+        .sort_values(ascending=False)
+        .to_string()
+    )
+
     print("\nFirms by industry:")
     industry_counts = (
         panel.groupby("industry")["firm_id"]
@@ -41,6 +51,14 @@ def print_panel_summary(panel: pd.DataFrame) -> None:
         .sort_values(ascending=False)
     )
     print(industry_counts.to_string())
+
+    print("\nFirms by analysis industry_group:")
+    print(
+        grouped.groupby("industry_group")["firm_id"]
+        .nunique()
+        .sort_values(ascending=False)
+        .to_string()
+    )
 
     print("\nNon-null rates (firm-years):")
     for col in ["esg", "roa", "roe"]:

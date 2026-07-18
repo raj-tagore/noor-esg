@@ -1,7 +1,8 @@
 """Exploratory atlas of the firm-year panel (composition, coverage, groups).
 
 Descriptive only — no regressions, forecasts, or ESG→CFP inference.
-Geography uses country_hq; industry uses the raw industry label.
+Grouped plots use the same country_group / industry_group definitions as
+heterogeneity analysis (config.COUNTRY_GROUP_MAP and industry rules).
 """
 
 from __future__ import annotations
@@ -11,7 +12,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from config import EXPLORE_DIR, EXPLORE_MIN_FIRMS
+from config import (
+    COUNTRY_GROUP_ORDER,
+    EXPLORE_DIR,
+    INDUSTRY_GROUP_ORDER,
+)
+from groups import add_group_columns
 
 
 def ensure_explore_dir() -> None:
@@ -22,21 +28,17 @@ def set_plot_style() -> None:
     plt.style.use("seaborn-v0_8-darkgrid")
 
 
-def collapse_rare(
-    panel: pd.DataFrame,
-    column: str,
-    min_firms: int = EXPLORE_MIN_FIRMS,
-    other_label: str = "Other",
-) -> pd.Series:
-    """Map rare groups (by distinct firm_id count) to Other; keep frequent labels."""
+def _ordered_labels(present: list[str], order: list[str]) -> list[str]:
+    """Order labels by analysis display order; append any extras alphabetically."""
 
-    firm_counts = panel.groupby(column)["firm_id"].nunique()
-    keep = set(firm_counts[firm_counts >= min_firms].index)
-    return panel[column].where(panel[column].isin(keep), other_label)
+    rank = {g: i for i, g in enumerate(order) if g != "Full sample"}
+    known = [g for g in order if g != "Full sample" and g in present]
+    extras = sorted(g for g in present if g not in rank)
+    return known + extras
 
 
 def build_composition_summary(panel: pd.DataFrame) -> pd.DataFrame:
-    """Exact (uncollapsed) firm and firm-year counts by country and by industry."""
+    """Exact firm and firm-year counts by raw country_hq, industry, and analysis groups."""
 
     country = (
         panel.groupby("country_hq", dropna=False)
@@ -54,7 +56,24 @@ def build_composition_summary(panel: pd.DataFrame) -> pd.DataFrame:
     )
     industry.insert(0, "dimension", "industry")
 
-    summary = pd.concat([country, industry], ignore_index=True)
+    grouped = add_group_columns(panel)
+    country_g = (
+        grouped.groupby("country_group", dropna=False)
+        .agg(n_firms=("firm_id", "nunique"), n_firm_years=("firm_id", "size"))
+        .reset_index()
+        .rename(columns={"country_group": "group"})
+    )
+    country_g.insert(0, "dimension", "country_group")
+
+    industry_g = (
+        grouped.groupby("industry_group", dropna=False)
+        .agg(n_firms=("firm_id", "nunique"), n_firm_years=("firm_id", "size"))
+        .reset_index()
+        .rename(columns={"industry_group": "group"})
+    )
+    industry_g.insert(0, "dimension", "industry_group")
+
+    summary = pd.concat([country, industry, country_g, industry_g], ignore_index=True)
     return summary.sort_values(["dimension", "n_firms"], ascending=[True, False]).reset_index(drop=True)
 
 
@@ -94,9 +113,7 @@ def plot_composition_country(panel: pd.DataFrame) -> None:
 
 def plot_composition_industry_heatmap(panel: pd.DataFrame) -> None:
     set_plot_style()
-    work = panel.copy()
-    work["country_group"] = collapse_rare(work, "country_hq")
-    work["industry_group"] = collapse_rare(work, "industry")
+    work = add_group_columns(panel)
 
     industry_counts = (
         panel.groupby("industry")["firm_id"]
@@ -104,9 +121,12 @@ def plot_composition_industry_heatmap(panel: pd.DataFrame) -> None:
         .sort_values(ascending=True)
     )
 
-    # Firm counts for heatmap: one row per firm, then crosstab
     firms = work.drop_duplicates("firm_id")
     heat = pd.crosstab(firms["country_group"], firms["industry_group"])
+    heat = heat.reindex(
+        index=_ordered_labels(list(heat.index.astype(str)), COUNTRY_GROUP_ORDER),
+        columns=_ordered_labels(list(heat.columns.astype(str)), INDUSTRY_GROUP_ORDER),
+    )
 
     fig, axes = plt.subplots(1, 2, figsize=(16, max(6, 0.35 * len(industry_counts))))
 
@@ -127,14 +147,15 @@ def plot_composition_industry_heatmap(panel: pd.DataFrame) -> None:
         linewidths=0.5, ax=axes[1], cbar_kws={"label": "Firms"},
     )
     axes[1].set_title(
-        f"Country × industry firm counts\n(groups with <{EXPLORE_MIN_FIRMS} firms → Other)",
+        "Country group × industry group firm counts\n"
+        "(same groups as heterogeneity analysis)",
         fontsize=12, fontweight="bold",
     )
-    axes[1].set_xlabel("Industry", fontsize=11, fontweight="bold")
-    axes[1].set_ylabel("Country (HQ)", fontsize=11, fontweight="bold")
+    axes[1].set_xlabel("Industry group", fontsize=11, fontweight="bold")
+    axes[1].set_ylabel("Country group", fontsize=11, fontweight="bold")
     plt.setp(axes[1].get_xticklabels(), rotation=35, ha="right")
 
-    plt.suptitle("Sample composition: industry and country × industry", fontsize=14, fontweight="bold")
+    plt.suptitle("Sample composition: industry and country × industry groups", fontsize=14, fontweight="bold")
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     fig.savefig(EXPLORE_DIR / "02_composition_industry_heatmap.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
@@ -188,8 +209,7 @@ def plot_coverage_over_time(panel: pd.DataFrame) -> None:
 
 def plot_coverage_by_country(panel: pd.DataFrame) -> None:
     set_plot_style()
-    work = panel.copy()
-    work["country_group"] = collapse_rare(work, "country_hq")
+    work = add_group_columns(panel)
 
     rows = []
     for group, sub in work.groupby("country_group"):
@@ -207,9 +227,12 @@ def plot_coverage_by_country(panel: pd.DataFrame) -> None:
             "n_firms": sub["firm_id"].nunique(),
             "n_firm_years": n_fy,
         })
-    cov = pd.DataFrame(rows).sort_values("n_firms", ascending=True)
+    cov = pd.DataFrame(rows)
+    order = _ordered_labels(list(cov["country_group"].astype(str)), COUNTRY_GROUP_ORDER)
+    cov["country_group"] = pd.Categorical(cov["country_group"], categories=order, ordered=True)
+    cov = cov.sort_values("country_group", ascending=True)
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, max(5, 0.4 * len(cov))))
+    fig, axes = plt.subplots(1, 2, figsize=(14, max(5, 0.45 * len(cov))))
 
     axes[0].barh(cov["country_group"].astype(str), cov["esg_share"] * 100, color="#9B59B6", alpha=0.85)
     axes[0].set_xlabel("Share of firm-years with non-null ESG (%)", fontsize=10, fontweight="bold")
@@ -226,10 +249,11 @@ def plot_coverage_by_country(panel: pd.DataFrame) -> None:
     axes[1].set_title("ESG history depth by country group", fontsize=12, fontweight="bold")
 
     plt.suptitle(
-        f"Coverage intensity by country_hq (groups with <{EXPLORE_MIN_FIRMS} firms → Other)",
+        "Coverage intensity by analysis country group\n"
+        "(Japan, China incl. HK, Korea, Taiwan, India, ASEAN, West Asia / Middle East)",
         fontsize=13, fontweight="bold",
     )
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     fig.savefig(EXPLORE_DIR / "04_coverage_by_country.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
@@ -272,38 +296,50 @@ def plot_univariate_distributions(panel: pd.DataFrame) -> None:
 
 def plot_distributions_by_group(panel: pd.DataFrame) -> None:
     set_plot_style()
-    work = panel.copy()
-    work["country_group"] = collapse_rare(work, "country_hq")
-    work["industry_group"] = collapse_rare(work, "industry")
+    work = add_group_columns(panel)
+    country_order = _ordered_labels(list(work["country_group"].unique()), COUNTRY_GROUP_ORDER)
+    industry_order = _ordered_labels(list(work["industry_group"].unique()), INDUSTRY_GROUP_ORDER)
 
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
 
-    sns.boxplot(data=work, x="industry_group", y="esg", ax=axes[0, 0], color="#9B59B6")
-    axes[0, 0].set_title("ESG by industry", fontsize=12, fontweight="bold")
-    axes[0, 0].set_xlabel("Industry", fontsize=10, fontweight="bold")
+    sns.boxplot(
+        data=work, x="industry_group", y="esg", ax=axes[0, 0], color="#9B59B6",
+        order=industry_order,
+    )
+    axes[0, 0].set_title("ESG by industry group", fontsize=12, fontweight="bold")
+    axes[0, 0].set_xlabel("Industry group", fontsize=10, fontweight="bold")
     axes[0, 0].set_ylabel("ESG Score", fontsize=10, fontweight="bold")
     plt.setp(axes[0, 0].get_xticklabels(), rotation=30, ha="right")
 
-    sns.boxplot(data=work, x="industry_group", y="roa", ax=axes[0, 1], color="#E67E22")
-    axes[0, 1].set_title("ROA by industry", fontsize=12, fontweight="bold")
-    axes[0, 1].set_xlabel("Industry", fontsize=10, fontweight="bold")
+    sns.boxplot(
+        data=work, x="industry_group", y="roa", ax=axes[0, 1], color="#E67E22",
+        order=industry_order,
+    )
+    axes[0, 1].set_title("ROA by industry group", fontsize=12, fontweight="bold")
+    axes[0, 1].set_xlabel("Industry group", fontsize=10, fontweight="bold")
     axes[0, 1].set_ylabel("Pretax ROA (%)", fontsize=10, fontweight="bold")
     plt.setp(axes[0, 1].get_xticklabels(), rotation=30, ha="right")
 
-    sns.boxplot(data=work, x="country_group", y="esg", ax=axes[1, 0], color="#9B59B6")
+    sns.boxplot(
+        data=work, x="country_group", y="esg", ax=axes[1, 0], color="#9B59B6",
+        order=country_order,
+    )
     axes[1, 0].set_title("ESG by country group", fontsize=12, fontweight="bold")
-    axes[1, 0].set_xlabel("Country (HQ)", fontsize=10, fontweight="bold")
+    axes[1, 0].set_xlabel("Country group", fontsize=10, fontweight="bold")
     axes[1, 0].set_ylabel("ESG Score", fontsize=10, fontweight="bold")
     plt.setp(axes[1, 0].get_xticklabels(), rotation=30, ha="right")
 
-    sns.boxplot(data=work, x="country_group", y="roa", ax=axes[1, 1], color="#E67E22")
+    sns.boxplot(
+        data=work, x="country_group", y="roa", ax=axes[1, 1], color="#E67E22",
+        order=country_order,
+    )
     axes[1, 1].set_title("ROA by country group", fontsize=12, fontweight="bold")
-    axes[1, 1].set_xlabel("Country (HQ)", fontsize=10, fontweight="bold")
+    axes[1, 1].set_xlabel("Country group", fontsize=10, fontweight="bold")
     axes[1, 1].set_ylabel("Pretax ROA (%)", fontsize=10, fontweight="bold")
     plt.setp(axes[1, 1].get_xticklabels(), rotation=30, ha="right")
 
     plt.suptitle(
-        f"Distributions by group (groups with <{EXPLORE_MIN_FIRMS} firms → Other)",
+        "Distributions by analysis groups (same country / industry groups as FE heterogeneity)",
         fontsize=13, fontweight="bold",
     )
     plt.tight_layout(rect=[0, 0, 1, 0.96])
@@ -317,13 +353,14 @@ def plot_distributions_by_group(panel: pd.DataFrame) -> None:
 
 def plot_median_trajectories_by_group(panel: pd.DataFrame) -> None:
     set_plot_style()
-    work = panel.copy()
-    work["country_group"] = collapse_rare(work, "country_hq")
-    work["industry_group"] = collapse_rare(work, "industry")
+    work = add_group_columns(panel)
+    country_order = _ordered_labels(list(work["country_group"].unique()), COUNTRY_GROUP_ORDER)
+    industry_order = _ordered_labels(list(work["industry_group"].unique()), INDUSTRY_GROUP_ORDER)
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
-    for group, sub in work.groupby("country_group"):
+    for group in country_order:
+        sub = work[work["country_group"] == group]
         med = sub.groupby("year")["esg"].median()
         axes[0].plot(med.index, med.values, "o-", linewidth=2, markersize=5, label=str(group))
     axes[0].set_title("Median ESG by country group", fontsize=12, fontweight="bold")
@@ -333,10 +370,11 @@ def plot_median_trajectories_by_group(panel: pd.DataFrame) -> None:
     axes[0].set_xticks(sorted(work["year"].unique()))
     plt.setp(axes[0].get_xticklabels(), rotation=45, ha="right")
 
-    for group, sub in work.groupby("industry_group"):
+    for group in industry_order:
+        sub = work[work["industry_group"] == group]
         med = sub.groupby("year")["esg"].median()
         axes[1].plot(med.index, med.values, "o-", linewidth=2, markersize=5, label=str(group))
-    axes[1].set_title("Median ESG by industry", fontsize=12, fontweight="bold")
+    axes[1].set_title("Median ESG by industry group", fontsize=12, fontweight="bold")
     axes[1].set_xlabel("Year", fontsize=10, fontweight="bold")
     axes[1].set_ylabel("Median ESG Score", fontsize=10, fontweight="bold")
     axes[1].legend(loc="best", fontsize=8)
@@ -344,7 +382,7 @@ def plot_median_trajectories_by_group(panel: pd.DataFrame) -> None:
     plt.setp(axes[1].get_xticklabels(), rotation=45, ha="right")
 
     plt.suptitle(
-        "Median ESG trajectories by group (descriptive only — not for inference)",
+        "Median ESG trajectories by analysis group (descriptive only — not for inference)",
         fontsize=13, fontweight="bold",
     )
     plt.tight_layout(rect=[0, 0, 1, 0.94])
@@ -356,10 +394,16 @@ def plot_median_trajectories_by_group(panel: pd.DataFrame) -> None:
 # 8. ESG vs ROA facets
 # ---------------------------------------------------------------------------
 
-def _facet_scatter(panel: pd.DataFrame, group_col: str, filename: str, title: str) -> None:
+def _facet_scatter(
+    panel: pd.DataFrame,
+    group_col: str,
+    filename: str,
+    title: str,
+    group_order: list[str],
+) -> None:
     set_plot_style()
     work = panel.dropna(subset=["esg", "roa"]).copy()
-    groups = sorted(work[group_col].dropna().unique(), key=str)
+    groups = [g for g in group_order if g in set(work[group_col].dropna().unique())]
     n = len(groups)
     ncols = min(3, max(1, n))
     nrows = int(np.ceil(n / ncols))
@@ -387,21 +431,23 @@ def _facet_scatter(panel: pd.DataFrame, group_col: str, filename: str, title: st
 
 
 def plot_esg_roa_facets(panel: pd.DataFrame) -> None:
-    work = panel.copy()
-    work["country_group"] = collapse_rare(work, "country_hq")
-    work["industry_group"] = collapse_rare(work, "industry")
+    work = add_group_columns(panel)
+    country_order = _ordered_labels(list(work["country_group"].unique()), COUNTRY_GROUP_ORDER)
+    industry_order = _ordered_labels(list(work["industry_group"].unique()), INDUSTRY_GROUP_ORDER)
 
     _facet_scatter(
         work,
         "industry_group",
         "08a_esg_vs_roa_by_industry.png",
-        f"ESG vs ROA by industry (descriptive; groups with <{EXPLORE_MIN_FIRMS} firms → Other)",
+        "ESG vs ROA by industry group (descriptive; Banks / Insurance / Other financials)",
+        industry_order,
     )
     _facet_scatter(
         work,
         "country_group",
         "08b_esg_vs_roa_by_country.png",
-        f"ESG vs ROA by country group (descriptive; groups with <{EXPLORE_MIN_FIRMS} firms → Other)",
+        "ESG vs ROA by country group (descriptive; same groups as FE heterogeneity)",
+        country_order,
     )
 
 

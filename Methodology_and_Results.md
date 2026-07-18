@@ -22,7 +22,7 @@ Three variables are used:
 
 ### 3.1.1 Exploratory sample diagnostics
 
-Before inference, a descriptive atlas of the firm-year panel is produced (script: `code/explore_dataset.py`; figures under `outputs/explore/`). These plots use headquarters country (`country_hq`) and TRBC industry labels already present in the panel. For multi-series and faceted figures, country or industry groups with fewer than five distinct firms are collapsed into an “Other” category so thin cells do not dominate the display; exact uncollapsed counts are retained in `outputs/explore/panel_composition_summary.csv` and in the single-dimension bar charts.
+Before inference, a descriptive atlas of the firm-year panel is produced (script: `code/explore_dataset.py`; figures under `outputs/explore/`). Single-dimension composition charts show raw headquarters country (`country_hq`) and TRBC industry labels. Multi-series and faceted figures use the **same** geography- and industry-based analysis groups as the heterogeneity regressions (Japan; China incl. Hong Kong; Korea; Taiwan; India; ASEAN; West Asia / Middle East; and Banks / Insurance / Other financials), defined in `config.COUNTRY_GROUP_MAP` / industry rules via `code/groups.py`. Exact uncollapsed counts are retained in `outputs/explore/panel_composition_summary.csv` and in the single-dimension bar charts.
 
 In this sample the panel has **150 firms** and **2,250 firm-years** (2011–2025). Headquarters coverage is led by Japan (37), China (17), South Korea (16), India (13), and Taiwan (13). By industry, Banks predominate (97), followed by Life & Health Insurance (16) and Investment Banking & Brokerage Services (12). ESG is non-missing in all firm-years; pretax ROA and ROE are available for 99.1% and 98.9% of firm-years respectively.
 
@@ -31,13 +31,13 @@ The figures are for sample understanding only. Median trajectories and faceted E
 | Figure | File | What it shows | Why it matters |
 |---|---|---|---|
 | 1 | `01_composition_country.png` | Distinct firms by `country_hq` (all countries) | Shows geographic concentration and which markets dominate the Asian BFSI sample |
-| 2 | `02_composition_industry_heatmap.png` | Firms by industry, plus a country × industry firm-count heatmap (rare groups collapsed) | Clarifies industry mix and where country–industry cells are thin before subgroup work |
+| 2 | `02_composition_industry_heatmap.png` | Firms by industry, plus a country-group × industry-group firm-count heatmap (analysis groups) | Clarifies industry mix and where analysis-group cells are thin before subgroup work |
 | 3 | `03_coverage_over_time.png` | Non-null ESG / ROA / ROE firm-year counts by calendar year | Reveals unbalancedness and whether disclosure or financial coverage changes over 2011–2025 |
-| 4 | `04_coverage_by_country.png` | ESG coverage rate and median years of ESG history per firm, by country group | Flags thin or short-history country cells that would be unreliable for heterogeneity analysis |
+| 4 | `04_coverage_by_country.png` | ESG coverage rate and median years of ESG history per firm, by analysis country group | Flags thin or short-history country cells that would be unreliable for heterogeneity analysis |
 | 5 | `05_univariate_distributions.png` | Histograms/KDEs of ESG, pretax ROA, and pretax ROE (firm-year; ROA/ROE winsorized) | Checks skew, tails after winsorization, and overall scale of each metric |
-| 6 | `06_distributions_by_group.png` | Box plots of ESG and ROA by industry and by country group | Shows level differences across business models and markets (descriptive heterogeneity of levels) |
-| 7 | `07_median_trajectories_by_group.png` | Median ESG over time by country group and by industry | Descriptive trend comparison across groups; not used for ESG–CFP inference |
-| 8a / 8b | `08a_esg_vs_roa_by_industry.png`, `08b_esg_vs_roa_by_country.png` | Firm-year ESG vs ROA scatters faceted by industry and by country group | Makes within-group clouds visible; pooled scatter alone can hide composition |
+| 6 | `06_distributions_by_group.png` | Box plots of ESG and ROA by analysis industry and country groups | Shows level differences across business models and markets (descriptive heterogeneity of levels) |
+| 7 | `07_median_trajectories_by_group.png` | Median ESG over time by analysis country and industry groups | Descriptive trend comparison across groups; not used for ESG–CFP inference |
+| 8a / 8b | `08a_esg_vs_roa_by_industry.png`, `08b_esg_vs_roa_by_country.png` | Firm-year ESG vs ROA scatters faceted by analysis industry and country groups | Makes within-group clouds visible; pooled scatter alone can hide composition |
 
 ### 3.2 Primary model: panel fixed-effects regression
 
