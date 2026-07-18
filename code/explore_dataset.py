@@ -6,6 +6,8 @@ generates descriptive plots under outputs/explore/.
 
 from __future__ import annotations
 
+import pandas as pd
+
 from config import EXPLORE_DIR, EXPLORE_MIN_FIRMS
 from data_processing import build_panel_dataset, load_raw_dataset
 from explore_plots import build_composition_summary, ensure_explore_dir, run_all_explore_plots

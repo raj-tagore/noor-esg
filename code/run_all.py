@@ -3,8 +3,9 @@
 Pipeline order:
 1. Panel fixed-effects regression + out-of-sample ML evaluation + correlations
 2. Country-group and industry subsample FE (heterogeneity)
-3. Illustrative linear-trend forecast (2026-2030)
-4. All outputs written to outputs/
+3. Descriptive stats + illustrative linear-trend forecast (2026-2030)
+
+All outputs are written to outputs/.
 
 Period: 2011-2025 (15 years), Asian banking markets.
 """
