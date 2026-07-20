@@ -205,8 +205,6 @@ typst compile paper.typ paper.pdf
 | `banking_forecast_2026_2030.csv` | Illustrative OLS trend forecast + 95% PIs |
 | `banking_forecast_2026_2030.png` | Forecast chart |
 
-Older helper images such as `_check_fig2_esg_roa.png` / `_check_fig6_rolling.png` may also be present; the paper may reference them. Prefer regenerating via `run_all.py` / plot modules when possible.
-
 ### Exploratory atlas — `outputs/explore/`
 
 | File | What it is |

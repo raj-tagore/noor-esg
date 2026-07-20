@@ -581,11 +581,6 @@ In substantive terms, a one-point change in a bank's ESG score is associated wit
   caption: [Firm-year relationship between ESG and pretax profitability],
 ) <fig:esg-cfp-detail>
 
-#figure(
-  image("outputs/_check_fig2_esg_roa.png", width: 75%),
-  caption: [Pretax ROA (%) versus ESG score (firm-year) with near-flat OLS fit],
-) <fig:esg-roa-scatter>
-
 === Heterogeneity: country groups and industry
 
 Re-estimating the same FE model within geographic and industry groups largely reproduces the pooled null. @tab:het-country and @tab:het-industry report contemporaneous ESG coefficients; forest plots show the same contemporaneous pattern.
@@ -709,11 +704,6 @@ Using a linear-trend model on the annual median series, ESG is projected to cont
 == Rolling correlations: stably weak
 
 On firm-year data, the rolling 5-year correlations are consistently weak throughout the period (@tab:rolling-corr): ESG–ROA stays close to zero and ESG–ROE remains mildly positive but small.
-
-#figure(
-  image("outputs/_check_fig6_rolling.png", width: 90%),
-  caption: [Rolling 5-year correlations (firm-year data)],
-) <fig:rolling-corr>
 
 #figure(
   table(
